@@ -1,5 +1,6 @@
-﻿using UnityEngine;
-using UnityEditor;
+﻿using UnityEditor;
+using UnityEditor.TerrainTools;
+using UnityEngine;
 
 public class lightSetup : EditorWindow
 {   
@@ -16,6 +17,8 @@ public class lightSetup : EditorWindow
 
     bool showPreview = false;
     private string presetName = "MyRig";
+
+    private GameObject previewLightGO;
 
     [MenuItem("Window/Instant Light Setup")]
     public static void ShowWindow()
@@ -59,7 +62,14 @@ public class lightSetup : EditorWindow
 
         GUILayout.Space(20);
 
-        showPreview = EditorGUILayout.Toggle("Preview", showPreview);
+        if(showPreview = EditorGUILayout.Toggle("Preview", showPreview)) 
+        {
+        UpdatePreviewLight();
+        }
+        else
+        {
+            DestroyPreviewLight();
+        }
 
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
         GUILayout.Space(20);
@@ -219,6 +229,52 @@ public class lightSetup : EditorWindow
             _ => LightType.Point
         };
     }
+
+    private void UpdatePreviewLight()
+    {
+        if (!showPreview || selectedObject == null)
+        {
+            DestroyPreviewLight();
+            return;
+        }
+
+        if (previewLightGO == null)
+        {
+            previewLightGO = new GameObject("__LightPreview__");
+            previewLightGO.hideFlags = HideFlags.HideAndDontSave; // wichtig!
+            previewLightGO.AddComponent<Light>();
+        }
+
+        // Position berechnen (wie bei dir)
+        Vector3 targetPos = selectedObject.transform.position;
+        Vector3 lightPos = targetPos;
+        lightPos += Quaternion.Euler(0, horizontalAngle, 0) * selectedObject.transform.forward * sliderDistance;
+        lightPos += Vector3.up * Mathf.Sin(verticalAngle * Mathf.Deg2Rad) * sliderDistance;
+
+        previewLightGO.transform.position = lightPos;
+        previewLightGO.transform.LookAt(targetPos);
+
+        var l = previewLightGO.GetComponent<Light>();
+        l.type = MapToLightType(selectedIndex);   // bitte NICHT (LightType)selectedIndex
+        l.intensity = lightIntensity;
+        l.color = lightColor;
+
+        // Scene View live refresh
+        SceneView.RepaintAll();
+    }
+
+    private void DestroyPreviewLight()
+    {
+        if (previewLightGO != null)
+        {
+            Object.DestroyImmediate(previewLightGO);
+            previewLightGO = null;
+            SceneView.RepaintAll();
+        }
+    }
+
+
+    
 
 }
 
