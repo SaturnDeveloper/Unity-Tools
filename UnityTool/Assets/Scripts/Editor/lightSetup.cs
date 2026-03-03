@@ -15,6 +15,7 @@ public class lightSetup : EditorWindow
     float sliderDistance = 5f;
 
     bool showPreview = false;
+    private string presetName = "MyRig";
 
     [MenuItem("Window/Instant Light Setup")]
     public static void ShowWindow()
@@ -63,6 +64,28 @@ public class lightSetup : EditorWindow
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
         GUILayout.Space(20);
 
+        EditorGUILayout.LabelField("Presets", EditorStyles.boldLabel);
+        presetName = EditorGUILayout.TextField("Preset Name:", presetName);
+
+        using (new EditorGUI.DisabledScope(selectedObject == null))
+        {
+            if (GUILayout.Button("Save Preset", GUILayout.Height(32)))
+            {
+
+                LightRigManager.SaveRig(GetLightsRoot(selectedObject), presetName);
+            }
+
+            if (GUILayout.Button("Load Preset", GUILayout.Height(32)))
+            {
+                
+                LightRigManager.LoadRig(GetLightsRoot(selectedObject), presetName);
+            }
+        }
+
+        EditorGUILayout.Space(10);
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        EditorGUILayout.Space(10);
+
         if (GUILayout.Button("Add Light", GUILayout.Height(40)))
         {
             CreateLightWithAngles();
@@ -96,13 +119,19 @@ public class lightSetup : EditorWindow
 
         // Licht erstellen
         GameObject lightGO = new GameObject(options[selectedIndex]);
+        Undo.RegisterCreatedObjectUndo(lightGO, "Create Light");
+
+        Transform lightsRoot = GetOrCreateLightsRoot(selectedObject);
+
+        lightGO.transform.SetParent(lightsRoot, true); // parent FIRST, world stays
+
         Light light = lightGO.AddComponent<Light>();
-        light.type = (LightType)selectedIndex;
+        light.type = MapToLightType(selectedIndex);
         light.intensity = lightIntensity;
         light.color = lightColor;
 
         lightGO.transform.position = lightPos;
-        lightGO.transform.LookAt(selectedObject.transform.position);  // Zum Objekt schauen
+        lightGO.transform.LookAt(selectedObject.transform.position);
 
         GameObject child;
         if (!HasChildWithName(selectedObject, "Lights"))
@@ -161,7 +190,35 @@ public class lightSetup : EditorWindow
 
     }
 
+    private static Transform GetOrCreateLightsRoot(GameObject parent)
+    {
+        var existing = parent.transform.Find("Lights");
+        if (existing != null) return existing;
 
+        var root = new GameObject("Lights");
+        Undo.RegisterCreatedObjectUndo(root, "Create Lights Root");
+        root.transform.SetParent(parent.transform, false);
+        root.transform.localPosition = Vector3.zero;
+        root.transform.localRotation = Quaternion.identity;
+        return root.transform;
+    }
+    private static GameObject GetLightsRoot(GameObject parent)
+    {
+        // Für Save/Load: wir speichern den "Lights" Root (oder erstellen ihn)
+        return GetOrCreateLightsRoot(parent).gameObject;
+    }
+
+    private static LightType MapToLightType(int index)
+    {
+        // Dropdown: Directional, Point, Spot
+        return index switch
+        {
+            0 => LightType.Directional,
+            1 => LightType.Point,
+            2 => LightType.Spot,
+            _ => LightType.Point
+        };
+    }
 
 }
 
