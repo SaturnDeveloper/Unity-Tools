@@ -2,54 +2,68 @@
 using UnityEditor;
 
 public class lightSetup : EditorWindow
-{
+{   
+    GameObject selectedObject;
+
+    int selectedIndex = 0;
+    string[] options = { "Directional Light", "Point Light", "Spot Light" };
+    float lightIntensity = 1f;
+    Color lightColor = Color.white;
+
     float horizontalAngle = 0f;    
     float verticalAngle = 0f;
     float sliderDistance = 5f;
 
-    int selectedIndex = 0;
-    string[] options = { "Directional Light", "Point Light", "Spot Light" };
-    GameObject selectedObject;
+    bool showPreview = false;
 
-    float lightIntensity = 1f;
-    Color lightColor = Color.white;
-
-
-
-
-    [MenuItem("Window/Light Instant Setup")]
+    [MenuItem("Window/Instant Light Setup")]
     public static void ShowWindow()
     {
         var window = GetWindow<lightSetup>();
-        var títle = new GUIContent("Light Instant Setup");
+        var títle = new GUIContent("Instant Light Setup");
         window.titleContent = títle;
 
     }
 
     private void OnGUI()
     {
-        EditorGUILayout.LabelField("this is a custom window");
-        selectedIndex = EditorGUILayout.Popup("Auswahl:", selectedIndex, options);
+        GUILayout.Space(20);
+       
 
         selectedObject = (GameObject)EditorGUILayout.ObjectField(
-          "GameObject:",
-          selectedObject,
-          typeof(GameObject),
-          true  // true = Scene-Objekte erlauben
-      );
+            "GameObject:",
+            selectedObject,
+            typeof(GameObject),
+            true  // true = Scene-Objekte erlauben
+            );
+       
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+
+        EditorGUILayout.LabelField("Light Settings");
+        selectedIndex = EditorGUILayout.Popup("Types:", selectedIndex, options);
 
 
         // Licht Einstellungen
-        lightIntensity = EditorGUILayout.Slider("Intensität:", lightIntensity, 0f, 8f);
-        lightColor = EditorGUILayout.ColorField("Farbe:", lightColor);
+        lightIntensity = EditorGUILayout.Slider("Intensity:", lightIntensity, 0f, 8f);
+        lightColor = EditorGUILayout.ColorField("Color:", lightColor);
+        
+        GUILayout.Space(20);
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+
+        EditorGUILayout.LabelField("Light Position");
+
+        sliderDistance = EditorGUILayout.Slider("Distance:", sliderDistance, 0f, 100f);
+        horizontalAngle = EditorGUILayout.Slider("Horizontal:", horizontalAngle, 0f, 360f);
+        verticalAngle = EditorGUILayout.Slider("Vertical:", verticalAngle, 0f, 90f);
 
         GUILayout.Space(20);
 
-        sliderDistance = EditorGUILayout.Slider("Distanz:", sliderDistance, 0f, 100f);
-        horizontalAngle = EditorGUILayout.Slider("Horizontal:", horizontalAngle, 0f, 360f);
-        verticalAngle = EditorGUILayout.Slider("Vertikal:", verticalAngle, 0f, 90f);
+        showPreview = EditorGUILayout.Toggle("Preview", showPreview);
 
-        if (GUILayout.Button("Licht erstellen", GUILayout.Height(40)))
+        EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
+        GUILayout.Space(20);
+
+        if (GUILayout.Button("Add Light", GUILayout.Height(40)))
         {
             CreateLightWithAngles();
         }
