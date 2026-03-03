@@ -15,6 +15,8 @@ public class lightSetup : EditorWindow
     Color lightColor = Color.white;
 
 
+
+
     [MenuItem("Window/Light Instant Setup")]
     public static void ShowWindow()
     {
@@ -52,7 +54,12 @@ public class lightSetup : EditorWindow
             CreateLightWithAngles();
         }
 
-        
+        if (GUILayout.Button("Delete Lights", GUILayout.Height(40)))
+        {
+            DeleteLights();
+        }
+
+
 
     }
 
@@ -83,8 +90,64 @@ public class lightSetup : EditorWindow
         lightGO.transform.position = lightPos;
         lightGO.transform.LookAt(selectedObject.transform.position);  // Zum Objekt schauen
 
+        GameObject child;
+        if (!HasChildWithName(selectedObject, "Lights"))
+        {
+            child = new GameObject("Lights");
+            child.transform.SetParent(selectedObject.transform);
+        }
+        else
+        {
+            child = selectedObject.transform.Find("Lights").gameObject;
+        }
+
+
+        light.transform.SetParent(child.transform);
         Undo.RegisterCreatedObjectUndo(lightGO, "Licht positioniert");
         Debug.Log($"Licht bei H:{horizontalAngle:F0}° V:{verticalAngle:F0}° Distanz:{sliderDistance}");
     }
+
+    bool HasChildWithName(GameObject parent, string childName)
+    {
+        for (int i = 0; i < parent.transform.childCount; i++)
+        {
+            if (parent.transform.GetChild(i).name == childName)
+                return true;
+        }
+        return false;
+    }
+
+    void DeleteLights()
+    {
+        if (selectedObject == null)
+        {
+            EditorUtility.DisplayDialog("Fehler", "Wähle ein Objekt!", "OK");
+            return;
+        }
+
+        bool userClickedOK = EditorUtility.DisplayDialog("Are you sure?", "Delete the whole setup", "Yes", "Discard");
+        if (userClickedOK)
+        {
+            Transform lightsParent = selectedObject.transform.Find("Lights");
+            if (lightsParent != null)
+            {
+                Undo.DestroyObjectImmediate(lightsParent.gameObject);
+                Debug.Log("Alle Lichter gelöscht.");
+            }
+            else
+            {
+                EditorUtility.DisplayDialog("Info", "Keine Lichter zum Löschen gefunden!", "OK");
+            }
+        }
+        else
+        {
+            // User hat "Abbrechen" → nichts tun
+        }
+
+
+    }
+
+
+
 }
 
