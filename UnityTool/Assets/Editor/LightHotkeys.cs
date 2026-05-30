@@ -3,7 +3,7 @@ using UnityEngine;
 
 public static class LightHotkeys
 {
-    // Ctrl + Shift + L
+    // Shift + L 
     [MenuItem("Tools/Hotkeys/Spawn Light At Mouse #l")]
     private static void SpawnLightAtMouse()
     {
@@ -15,25 +15,24 @@ public static class LightHotkeys
             return;
         }
 
-        Event e = Event.current;
-
-        // Mausposition im SceneView
+        // Mausposition im SceneView holen
         Vector2 mousePos = Event.current != null
             ? Event.current.mousePosition
             : sceneView.position.size / 2f;
 
-        mousePos.y = sceneView.camera.pixelHeight - mousePos.y;
-
-        Ray ray = sceneView.camera.ScreenPointToRay(mousePos);
+        // GUI → Welt-Ray
+        Ray ray = HandleUtility.GUIPointToWorldRay(mousePos);
 
         Vector3 spawnPos;
 
+        // Wenn Raycast etwas trifft → Hit-Point
         if (Physics.Raycast(ray, out RaycastHit hit))
         {
             spawnPos = hit.point;
         }
         else
         {
+            // Wenn nichts getroffen → Punkt direkt vor der Kamera
             spawnPos = ray.origin + ray.direction * 5f;
         }
 
