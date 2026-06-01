@@ -1,9 +1,8 @@
 ﻿using UnityEditor;
-using UnityEditor.TerrainTools;
 using UnityEngine;
 
 public class lightSetup : EditorWindow
-{   
+{
     GameObject selectedObject;
 
     int selectedIndex = 0;
@@ -11,7 +10,7 @@ public class lightSetup : EditorWindow
     float lightIntensity = 1f;
     Color lightColor = Color.white;
 
-    float horizontalAngle = 0f;    
+    float horizontalAngle = 0f;
     float verticalAngle = 0f;
     float sliderDistance = 5f;
 
@@ -20,37 +19,81 @@ public class lightSetup : EditorWindow
 
     private GameObject previewLightGO;
 
+    // --- Light Group System ---
+    private LightGroupDatabase groupDB;
+    private string[] groupOptions = { "None" };
+    private int selectedGroupIndex = 0;
+
     [MenuItem("Window/Instant Light Setup")]
     public static void ShowWindow()
     {
         var window = GetWindow<lightSetup>();
-        var títle = new GUIContent("Instant Light Setup");
-        window.titleContent = títle;
+        window.titleContent = new GUIContent("Instant Light Setup");
+    }
 
+    private void OnEnable()
+    {
+        LoadGroupDatabase();
+    }
+
+    private void LoadGroupDatabase()
+    {
+        string[] guids = AssetDatabase.FindAssets("t:LightGroupDatabase");
+
+        if (guids.Length == 0)
+        {
+            Debug.LogWarning("Keine LightGroupDatabase gefunden!");
+            groupDB = null;
+            RefreshGroupOptions();
+            return;
+        }
+
+        string path = AssetDatabase.GUIDToAssetPath(guids[0]);
+        groupDB = AssetDatabase.LoadAssetAtPath<LightGroupDatabase>(path);
+
+        RefreshGroupOptions();
+    }
+
+    private void RefreshGroupOptions()
+    {
+        if (groupDB == null)
+        {
+            groupOptions = new string[] { "None" };
+            selectedGroupIndex = 0;
+            return;
+        }
+
+        if (groupDB.groups == null)
+            groupDB.groups = new System.Collections.Generic.List<string>();
+
+        groupOptions = new string[groupDB.groups.Count + 1];
+        groupOptions[0] = "None";
+
+        for (int i = 0; i < groupDB.groups.Count; i++)
+            groupOptions[i + 1] = groupDB.groups[i];
+
+        selectedGroupIndex = Mathf.Clamp(selectedGroupIndex, 0, groupOptions.Length - 1);
     }
 
     private void OnGUI()
     {
         GUILayout.Space(20);
-       
 
         selectedObject = (GameObject)EditorGUILayout.ObjectField(
             "GameObject:",
             selectedObject,
             typeof(GameObject),
-            true  // true = Scene-Objekte erlauben
-            );
-       
+            true
+        );
+
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
 
         EditorGUILayout.LabelField("Light Settings");
         selectedIndex = EditorGUILayout.Popup("Types:", selectedIndex, options);
 
-
-        // Licht Einstellungen
         lightIntensity = EditorGUILayout.Slider("Intensity:", lightIntensity, 0f, 8f);
         lightColor = EditorGUILayout.ColorField("Color:", lightColor);
-        
+
         GUILayout.Space(20);
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
 
@@ -62,14 +105,16 @@ public class lightSetup : EditorWindow
 
         GUILayout.Space(20);
 
-        if(showPreview = EditorGUILayout.Toggle("Preview", showPreview)) 
-        {
-        UpdatePreviewLight();
-        }
+        // --- Light Group Dropdown ---
+        EditorGUILayout.LabelField("Light Group", EditorStyles.boldLabel);
+        selectedGroupIndex = EditorGUILayout.Popup("Group:", selectedGroupIndex, groupOptions);
+
+        GUILayout.Space(20);
+
+        if (showPreview = EditorGUILayout.Toggle("Preview", showPreview))
+            UpdatePreviewLight();
         else
-        {
             DestroyPreviewLight();
-        }
 
         EditorGUILayout.LabelField("", GUI.skin.horizontalSlider);
         GUILayout.Space(20);
@@ -80,16 +125,10 @@ public class lightSetup : EditorWindow
         using (new EditorGUI.DisabledScope(selectedObject == null))
         {
             if (GUILayout.Button("Save Preset", GUILayout.Height(32)))
-            {
-
                 LightRigManager.SaveRig(GetLightsRoot(selectedObject), presetName);
-            }
 
             if (GUILayout.Button("Load Preset", GUILayout.Height(32)))
-            {
-                
                 LightRigManager.LoadRig(GetLightsRoot(selectedObject), presetName);
-            }
         }
 
         EditorGUILayout.Space(10);
@@ -97,17 +136,10 @@ public class lightSetup : EditorWindow
         EditorGUILayout.Space(10);
 
         if (GUILayout.Button("Add Light", GUILayout.Height(40)))
-        {
             CreateLightWithAngles();
-        }
 
         if (GUILayout.Button("Delete Lights", GUILayout.Height(40)))
-        {
             DeleteLights();
-        }
-
-
-
     }
 
     void CreateLightWithAngles()
@@ -118,22 +150,16 @@ public class lightSetup : EditorWindow
             return;
         }
 
-        // Startposition = Objekt-Position
         Vector3 lightPos = selectedObject.transform.position;
 
-        // Horizontal um Y-Achse drehen (0-360°)
         lightPos += Quaternion.Euler(0, horizontalAngle, 0) * selectedObject.transform.forward * sliderDistance;
-
-        // Vertikal anheben/senken (0-90°)
         lightPos += Vector3.up * Mathf.Sin(verticalAngle * Mathf.Deg2Rad) * sliderDistance;
 
-        // Licht erstellen
         GameObject lightGO = new GameObject(options[selectedIndex]);
         Undo.RegisterCreatedObjectUndo(lightGO, "Create Light");
 
         Transform lightsRoot = GetOrCreateLightsRoot(selectedObject);
-
-        lightGO.transform.SetParent(lightsRoot, true); // parent FIRST, world stays
+        lightGO.transform.SetParent(lightsRoot, true);
 
         Light light = lightGO.AddComponent<Light>();
         light.type = MapToLightType(selectedIndex);
@@ -143,31 +169,15 @@ public class lightSetup : EditorWindow
         lightGO.transform.position = lightPos;
         lightGO.transform.LookAt(selectedObject.transform.position);
 
-        GameObject child;
-        if (!HasChildWithName(selectedObject, "Lights"))
-        {
-            child = new GameObject("Lights");
-            child.transform.SetParent(selectedObject.transform);
-        }
+        // --- Assign Light Group ---
+        var group = lightGO.AddComponent<LightGroup>();
+
+        if (groupOptions != null && selectedGroupIndex < groupOptions.Length)
+            group.groupName = groupOptions[selectedGroupIndex];
         else
-        {
-            child = selectedObject.transform.Find("Lights").gameObject;
-        }
+            group.groupName = "None";
 
-
-        light.transform.SetParent(child.transform);
-        Undo.RegisterCreatedObjectUndo(lightGO, "Licht positioniert");
-        Debug.Log($"Licht bei H:{horizontalAngle:F0}° V:{verticalAngle:F0}° Distanz:{sliderDistance}");
-    }
-
-    bool HasChildWithName(GameObject parent, string childName)
-    {
-        for (int i = 0; i < parent.transform.childCount; i++)
-        {
-            if (parent.transform.GetChild(i).name == childName)
-                return true;
-        }
-        return false;
+        Debug.Log($"Licht erstellt in Gruppe: {group.groupName}");
     }
 
     void DeleteLights()
@@ -178,26 +188,19 @@ public class lightSetup : EditorWindow
             return;
         }
 
-        bool userClickedOK = EditorUtility.DisplayDialog("Are you sure?", "Delete the whole setup", "Yes", "Discard");
-        if (userClickedOK)
+        bool ok = EditorUtility.DisplayDialog("Are you sure?", "Delete the whole setup", "Yes", "Discard");
+        if (!ok) return;
+
+        Transform lightsParent = selectedObject.transform.Find("Lights");
+        if (lightsParent != null)
         {
-            Transform lightsParent = selectedObject.transform.Find("Lights");
-            if (lightsParent != null)
-            {
-                Undo.DestroyObjectImmediate(lightsParent.gameObject);
-                Debug.Log("Alle Lichter gelöscht.");
-            }
-            else
-            {
-                EditorUtility.DisplayDialog("Info", "Keine Lichter zum Löschen gefunden!", "OK");
-            }
+            Undo.DestroyObjectImmediate(lightsParent.gameObject);
+            Debug.Log("Alle Lichter gelöscht.");
         }
         else
         {
-            // User hat "Abbrechen" → nichts tun
+            EditorUtility.DisplayDialog("Info", "Keine Lichter gefunden!", "OK");
         }
-
-
     }
 
     private static Transform GetOrCreateLightsRoot(GameObject parent)
@@ -208,19 +211,16 @@ public class lightSetup : EditorWindow
         var root = new GameObject("Lights");
         Undo.RegisterCreatedObjectUndo(root, "Create Lights Root");
         root.transform.SetParent(parent.transform, false);
-        root.transform.localPosition = Vector3.zero;
-        root.transform.localRotation = Quaternion.identity;
         return root.transform;
     }
+
     private static GameObject GetLightsRoot(GameObject parent)
     {
-        // Für Save/Load: wir speichern den "Lights" Root (oder erstellen ihn)
         return GetOrCreateLightsRoot(parent).gameObject;
     }
 
     private static LightType MapToLightType(int index)
     {
-        // Dropdown: Directional, Point, Spot
         return index switch
         {
             0 => LightType.Directional,
@@ -241,13 +241,13 @@ public class lightSetup : EditorWindow
         if (previewLightGO == null)
         {
             previewLightGO = new GameObject("__LightPreview__");
-            previewLightGO.hideFlags = HideFlags.HideAndDontSave; // wichtig!
+            previewLightGO.hideFlags = HideFlags.HideAndDontSave;
             previewLightGO.AddComponent<Light>();
         }
 
-        // Position berechnen (wie bei dir)
         Vector3 targetPos = selectedObject.transform.position;
         Vector3 lightPos = targetPos;
+
         lightPos += Quaternion.Euler(0, horizontalAngle, 0) * selectedObject.transform.forward * sliderDistance;
         lightPos += Vector3.up * Mathf.Sin(verticalAngle * Mathf.Deg2Rad) * sliderDistance;
 
@@ -255,11 +255,10 @@ public class lightSetup : EditorWindow
         previewLightGO.transform.LookAt(targetPos);
 
         var l = previewLightGO.GetComponent<Light>();
-        l.type = MapToLightType(selectedIndex);   // bitte NICHT (LightType)selectedIndex
+        l.type = MapToLightType(selectedIndex);
         l.intensity = lightIntensity;
         l.color = lightColor;
 
-        // Scene View live refresh
         SceneView.RepaintAll();
     }
 
@@ -267,14 +266,9 @@ public class lightSetup : EditorWindow
     {
         if (previewLightGO != null)
         {
-            Object.DestroyImmediate(previewLightGO);
+            DestroyImmediate(previewLightGO);
             previewLightGO = null;
             SceneView.RepaintAll();
         }
     }
-
-
-    
-
 }
-
